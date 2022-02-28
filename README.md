@@ -253,3 +253,63 @@ O resultado? Apenas CSV.
 500,424,160312.42,Chevrolet,Suburban 1500,London,Predovic LLC,2 Sundown Drive
 ```
 
+### Barra lateral: Esquemas em ação
+Então, lemos alguns dados CSV no Kafka. Esse não é o fim de sua jornada. Vai ser usado para alguma coisa! Vamos fazer isso.
+
+Aqui está o ksqlDB, no qual declaramos o tópico de pedidos no qual escrevemos com um esquema como um fluxo:
+
+```
+ksql> CREATE STREAM ORDERS_02 WITH (KAFKA_TOPIC='orders_spooldir_02',VALUE_FORMAT='AVRO');
+
+ Message
+----------------
+ Stream created
+----------------
+```
+
+Feito isso - e porque existe um esquema que foi criado no momento da ingestão - podemos ver todos os campos disponíveis para nós:
+
+```
+ksql> DESCRIBE ORDERS_02;
+
+Name                 : ORDERS_02
+ Field            | Type
+-------------------------------------------
+ ROWKEY           | VARCHAR(STRING)  (key)
+ ORDER_ID         | INTEGER
+ CUSTOMER_ID      | INTEGER
+ ORDER_TOTAL_USD  | DOUBLE
+ MAKE             | VARCHAR(STRING)
+ MODEL            | VARCHAR(STRING)
+ DELIVERY_CITY    | VARCHAR(STRING)
+ DELIVERY_COMPANY | VARCHAR(STRING)
+ DELIVERY_ADDRESS | VARCHAR(STRING)
+-------------------------------------------
+For runtime statistics and query details run: DESCRIBE EXTENDED <Stream,Table>;
+ksql>
+```
+
+e execute consultas nos dados que estão no Kafka:
+
+```
+ksql> SELECT DELIVERY_CITY, COUNT(*) AS ORDER_COUNT, MAX(CAST(ORDER_TOTAL_USD AS DECIMAL(9,2))) AS BIGGEST_ORDER_USD FROM ORDERS_02 GROUP BY DELIVERY_CITY EMIT CHANGES;
++---------------+-------------+---------------------+
+|DELIVERY_CITY  |ORDER_COUNT  |BIGGEST_ORDER_USD    |
++---------------+-------------+---------------------+
+|Bradford       |13           |189924.47            |
+|Edinburgh      |13           |199502.66            |
+|Bristol        |16           |213830.34            |
+|Sheffield      |74           |216233.98            |
+|London         |160          |219736.06            |
+```
+
+E quanto aos nossos dados que acabamos de ingerir em um tópico diferente como CSV direto? Porque, tipo, esquemas não são importantes?
+
+```
+ksql> CREATE STREAM ORDERS_03 WITH (KAFKA_TOPIC='orders_spooldir_03',VALUE_FORMAT='DELIMITED');
+No columns supplied.
+```
+
+Sim, sem colunas fornecidas. Sem esquema, sem bueno. Se você quiser trabalhar com os dados, seja para consultar em SQL, transmitir para um data lake ou fazer qualquer outra coisa, em algum momento você terá que declarar esse esquema. Por isso, o CSV, como método de serialização sem esquema, é uma maneira ruim de trocar dados entre sistemas.
+
+Se você realmente deseja usar seus dados CSV no ksqlDB, você pode, basta inserir o esquema - que é propenso a erros e tedioso. Você o insere toda vez para usar os dados, todos os outros consumidores dos dados também o inserem a cada vez. Declará-lo uma vez na ingestão e estar disponível para todos usarem faz muito mais sentido.
